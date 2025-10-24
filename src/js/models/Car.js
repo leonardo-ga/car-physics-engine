@@ -1,15 +1,29 @@
 import * as THREE from 'three';
+import Base from '../Base';
 
 export default class Car {
 
   constructor() {
+    this.base = new Base();
+    this.scene = this.base.scene;
+    this.keys = this.base.keys;
+    this.keysPressed = this.keys.keysPressed;
+
     this.loadParameters();
     this.loadModel();
+
+    // Keys keydown/keyup events
+    this.keys.on('keydown', (key) => {
+        this.turnWheels(key);
+    });
+    this.keys.on('keyup', (key) => {
+        this.turnWheels(key);
+    });
   }
 
   loadParameters() {
     // model
-    this.speed = 0.5;
+    this.speed = 0.3;
     this.turnRotationLoss = 5;
 
     // chassis
@@ -48,6 +62,8 @@ export default class Car {
     this.model.add(this.rrGroup);
 
     this.model.position.set(0, 1, 0);
+
+    this.scene.add(this.model);
   }
 
   loadChassis() {
@@ -108,13 +124,13 @@ export default class Car {
     this.rr.rotateZ(-Math.PI/2);
   }
 
-  turnWheels(keysPressed, key) {
+  turnWheels(key) {
     let dir = 0;
-    if ((key === "ArrowLeft" && keysPressed[key])
-      || (key === "ArrowRight" && !keysPressed[key])) {
+    if ((key === "ArrowLeft" && this.keysPressed[key])
+      || (key === "ArrowRight" && !this.keysPressed[key])) {
       dir = 1;
-    } else if ((key === "ArrowLeft" && !keysPressed[key])
-              || (key === "ArrowRight" && keysPressed[key])) {
+    } else if ((key === "ArrowLeft" && !this.keysPressed[key])
+              || (key === "ArrowRight" && this.keysPressed[key])) {
       dir = -1;
     }
     else {
@@ -136,23 +152,23 @@ export default class Car {
     this.rr.rotation.x += dir * this.wheelSpin;
   }
 
-  updateCar(keysPressed) {//TODO: see what I can do about the '-' sign
+  update() {//TODO: see what I can do about the '-' sign
     if (!this.model) {
       return;
     }
     const turnRotation = this.flGroup.rotation.y * this.speed / this.turnRotationLoss;
-    if (keysPressed.ArrowUp) {
+    if (this.keysPressed.ArrowUp) {
       this.model.rotation.y += turnRotation;
       this.move(-Math.sin(this.model.rotation.y) * this.speed, 0 , -Math.cos(this.model.rotation.y) * this.speed, -1)
     }
-    if (keysPressed.ArrowDown) {
+    if (this.keysPressed.ArrowDown) {
       this.model.rotation.y -= turnRotation;
       this.move(Math.sin(this.model.rotation.y) * this.speed, 0 , Math.cos(this.model.rotation.y) * this.speed, 1)
     }
-    if (keysPressed.ArrowLeft) {
+    if (this.keysPressed.ArrowLeft) {
       //this.model.rotation.y += this.turnSpeed;
     }
-    if (keysPressed.ArrowRight) {
+    if (this.keysPressed.ArrowRight) {
       //this.model.rotation.y -= this.turnSpeed;
     }
   }
