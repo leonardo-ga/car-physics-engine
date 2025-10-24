@@ -3,11 +3,32 @@ import * as THREE from 'three';
 export default class Car {
 
   constructor() {
+    this.loadParameters();
     this.loadModel();
+  }
 
-    this.speed = 0.03;
-    this.turnSpeed = 0.1;
-    this.wheelSpin = 5 * this.speed;
+  loadParameters() {
+    // model
+    this.speed = 0.5;
+    this.turnRotationLoss = 5;
+
+    // chassis
+    this.chassisDimensions = {
+      width: 2,
+      height: 1,
+      depth: 3,
+    }
+
+    // wheels
+    this.wheelDimensions = {
+      radius: 0.5,
+      thickness: 0.5,
+      precision: 8
+    }
+    //this.wheelSpin = this.speed / (2 * Math.PI * this.wheelDimensions.radius);
+    this.wheelSpin = this.speed;
+
+    // other
     this.direction = {
       x: 1,
       y: 0,
@@ -31,7 +52,9 @@ export default class Car {
 
   loadChassis() {
     // Chassis
-    const chassisGeometry = new THREE.BoxGeometry(2, 0.5, 3);
+    const chassisGeometry = new THREE.BoxGeometry(this.chassisDimensions.width, 
+                                                  this.chassisDimensions.height, 
+                                                  this.chassisDimensions.depth);
     const chassisMaterial = new THREE.MeshStandardMaterial({
       color: 0x9900ff,
       wireframe: true
@@ -42,7 +65,10 @@ export default class Car {
 
   loadWheels() {
     // Wheels
-    const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 8);
+    const wheelGeometry = new THREE.CylinderGeometry(this.wheelDimensions.radius,
+                                                      this.wheelDimensions.radius,
+                                                      this.wheelDimensions.thickness,
+                                                      this.wheelDimensions.precision);
     const wheelMaterial = new THREE.MeshStandardMaterial({
       color: 0x9900ff,
       wireframe: false
@@ -72,13 +98,13 @@ export default class Car {
     this.rrGroup.add(this.rr);
     this.rrGroup.add(rrAxisHelper);
 
-    this.flGroup.position.set(-1, 0, -1);
+    this.flGroup.position.set(-1, -0.5, -1);
     this.fl.rotateZ(Math.PI/2);
-    this.frGroup.position.set(1, 0, -1);
+    this.frGroup.position.set(1, -0.5, -1);
     this.fr.rotateZ(-Math.PI/2);
-    this.rlGroup.position.set(-1, 0, 1);
+    this.rlGroup.position.set(-1, -0.5, 1);
     this.rl.rotateZ(Math.PI/2);
-    this.rrGroup.position.set(1, 0, 1);
+    this.rrGroup.position.set(1, -0.5, 1);
     this.rr.rotateZ(-Math.PI/2);
   }
 
@@ -114,12 +140,13 @@ export default class Car {
     if (!this.model) {
       return;
     }
+    const turnRotation = this.flGroup.rotation.y * this.speed / this.turnRotationLoss;
     if (keysPressed.ArrowUp) {
-      this.model.rotation.y += this.flGroup.rotation.y * this.speed;
+      this.model.rotation.y += turnRotation;
       this.move(-Math.sin(this.model.rotation.y) * this.speed, 0 , -Math.cos(this.model.rotation.y) * this.speed, -1)
     }
     if (keysPressed.ArrowDown) {
-      this.model.rotation.y -= this.flGroup.rotation.y * this.speed;
+      this.model.rotation.y -= turnRotation;
       this.move(Math.sin(this.model.rotation.y) * this.speed, 0 , Math.cos(this.model.rotation.y) * this.speed, 1)
     }
     if (keysPressed.ArrowLeft) {

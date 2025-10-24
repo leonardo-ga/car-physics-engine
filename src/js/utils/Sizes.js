@@ -1,6 +1,6 @@
-import EventEmitter from "./EventEmitter";
+import Events from './Events';
 
-export default class Sizes extends EventEmitter {
+export default class Sizes extends Events {
 
     constructor() {
         super();

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import Sizes from '../utils/sizes';
+import Sizes from '../utils/Sizes';
 
 export default class Camera {
 
