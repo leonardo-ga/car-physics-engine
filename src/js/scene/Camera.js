@@ -41,8 +41,8 @@ export default class Camera {
     this.instance.lookAt(this.world.car.model.position);
 
     // OrbitControls update
-    this.controls.update();
-    this.controls.target.copy(this.world.car.model.position);
+    //this.controls.update();
+    //this.controls.target.copy(this.world.car.model.position);
   }
 
 }
