@@ -12,7 +12,8 @@ export default class Camera {
     this.sizes = this.base.sizes;
 
     this.load();
-    this.setOrbitControls();
+    // Per Orbit Controls
+    //this.setOrbitControls();
   }
 
   load() {
@@ -22,7 +23,7 @@ export default class Camera {
     this.scene.add(this.instance);
   }
 
-  setOrbitControls() {
+  setOrbitControls() {// Orbit controls setup
         this.controls = new OrbitControls(this.instance, this.base.canvas);
         this.controls.enableDamping = true;
     }
@@ -33,7 +34,15 @@ export default class Camera {
   }
 
   update() {
+    // Follow (and look at) car
+    this.instance.position.set(this.world.car.model.position.x,
+                                this.world.car.model.position.y + 10,
+                                this.world.car.model.position.z + 10);
+    this.instance.lookAt(this.world.car.model.position);
+
+    // OrbitControls update
     this.controls.update();
+    this.controls.target.copy(this.world.car.model.position);
   }
 
 }
