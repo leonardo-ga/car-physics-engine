@@ -38,10 +38,10 @@ export default class Base {
         //scene.add( axesHelper );
 
         // Logics
-        this.logics();
+        this.eventsLogics();
     }
 
-    logics() {
+    eventsLogics() {
         // Sizes resize event
         this.sizes.on('resize', () => {
             this.resize();  
