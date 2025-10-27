@@ -1,22 +1,33 @@
 import * as THREE from 'three';
-import Sizes from '../utils/Sizes';
 import Base from '../Base';
-import World from '../models/World';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
 export default class Camera {
 
   constructor() {
     this.base = new Base();
     this.scene = this.base.scene;
     this.world = this.base.world;
+    this.car = this.world.car;
     this.sizes = this.base.sizes;
+    this.keys = this.base.keys;
 
-    this.load();
-    // Per Orbit Controls
-    //this.setOrbitControls();
+    this.loadParameters();
+    this.loadCamera();
+    // For Orbit Controls
+    this.setOrbitControls();
   }
 
-  load() {
+  loadParameters() {
+    this.followOffset = new THREE.Vector3(0, 10, 10);
+    this.desiredPos = new THREE.Vector3();
+    this.carWorldPos = new THREE.Vector3();
+    this.lerpFactor = 0.1;
+    this.isStillMoving = false;
+    this.cameraPosApproximation = 0.1;
+  }
+
+  loadCamera() {
     this.instance = new THREE.PerspectiveCamera(75, this.sizes.width / this.sizes.height, 0.1, 100);
     this.instance.position.set(0, 10, 10);
     this.instance.lookAt(this.world.car.model.position);
@@ -24,9 +35,10 @@ export default class Camera {
   }
 
   setOrbitControls() {// Orbit controls setup
-        this.controls = new OrbitControls(this.instance, this.base.canvas);
-        this.controls.enableDamping = true;
-    }
+    this.controls = new OrbitControls(this.instance, this.base.canvas);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.1;
+  }
 
   resize() {
     this.instance.aspect = this.sizes.width / this.sizes.height;
@@ -35,14 +47,24 @@ export default class Camera {
 
   update() {
     // Follow (and look at) car
-    this.instance.position.set(this.world.car.model.position.x,
-                                this.world.car.model.position.y + 10,
-                                this.world.car.model.position.z + 10);
-    this.instance.lookAt(this.world.car.model.position);
+    let isMoving = this.keys.keysPressed.ArrowUp || this.keys.keysPressed.ArrowDown;
+    this.car.model.getWorldPosition(this.carWorldPos);
+    if (isMoving || this.isStillMoving) {
+      // Compute desired camera position (position only)
+      this.desiredPos.copy(this.carWorldPos).add(this.followOffset);
+
+      // Smoothly move the camera toward that position
+      this.instance.position.lerp(this.desiredPos, this.lerpFactor);
+
+      // Smoothly move the controls target toward the box
+      this.controls.target.lerp(this.carWorldPos, this.lerpFactor);
+
+      // Calculate if camera is in desired position
+      this.isStillMoving = !(this.instance.position.distanceTo(this.desiredPos) < this.cameraPosApproximation);
+    }
 
     // OrbitControls update
-    //this.controls.update();
-    //this.controls.target.copy(this.world.car.model.position);
+    this.controls.update();
   }
 
 }
