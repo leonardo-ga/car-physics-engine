@@ -13,7 +13,6 @@ export default class Keys extends Events {
                 if (this.keysPressed.hasOwnProperty(e.code)) {
                     this.keysPressed[e.code] = true;
                 }
-                //this.world.car.turnWheels(keysPressed, e.key);
                 this.trigger('keydown', [e.key]);
             } else {
                 console.log('Held key repeating: ' + e.key)
@@ -23,7 +22,6 @@ export default class Keys extends Events {
             if (this.keysPressed.hasOwnProperty(e.code)) {
                 this.keysPressed[e.code] = false;
             }
-            //this.world.car.turnWheels(keysPressed, e.key);
             this.trigger('keyup', [e.key]);
         });
 
