@@ -21,7 +21,13 @@ export default class Car {
     /**
      * Model
      */
-    this.speed = 0.3;
+    this.speed = 0;           // current velocity (m/s)
+    this.wheelSpinSpeed = 0;  // current wheel spin velocity
+    this.acceleration = 0;    // current acceleration (m/s^2)
+    this.maxSpeed = 10;       // max velocity
+    this.accelRate = 10;      // how fast it accelerates (m/s^2)
+    this.decelRate = 15;      // braking rate
+    this.friction = 2;        // natural slowdown (m/s^2)
     this.turnRotationLoss = 5;
 
     /**
@@ -41,8 +47,6 @@ export default class Car {
       thickness: 0.5,
       precision: 8
     }
-    //this.wheelSpinSpeed = this.speed / (2 * Math.PI * this.wheelDimensions.radius);
-    this.wheelSpinSpeed = this.speed;
     // For steering
     this.steeringAngle = Math.PI/6;
     this.steeringSpeed = Math.PI;
@@ -137,57 +141,79 @@ export default class Car {
     });
   }
 
-  turnWheels() {
-    const diff = this.targetSteeringAngle - this.currentSteeringAngle;
-    if (Math.abs(diff) > this.steerApproximation) {
-      const step = this.steeringSpeed * this.time.delta / 1000;
-
-      if (Math.abs(diff) < step) {
-        this.currentSteeringAngle = this.targetSteeringAngle;
-      } else {
-        this.currentSteeringAngle += Math.sign(diff) * step;
-      }
+  calculateAcc() {
+    if (this.keysPressed.ArrowUp) {
+      this.acceleration = this.accelRate;   // accelerate forward
+    } else if (this.keysPressed.ArrowDown) {
+      this.acceleration = -this.decelRate;  // accelerate backward (brake/reverse)
     } else {
-      this.currentSteeringAngle = this.targetSteeringAngle;
+      // No key: apply friction toward 0 velocity
+      if (this.speed > 0) {
+        this.acceleration = -this.friction;
+      } else if (this.speed < 0) {
+        this.acceleration = this.friction;
+      } else {
+        this.acceleration = 0;
+      }
     }
-    this.flGroup.rotation.y = this.currentSteeringAngle;
-    this.frGroup.rotation.y = this.currentSteeringAngle;
   }
 
-  move(distance, direction) {
-    // Model movement
+  calculateSpeed() {
+    // 2.1. Update velocity (integrate acceleration)
+    this.speed += this.acceleration * (this.time.delta/1000);
+    // 2.2. Clamp to limits
+    this.speed = Math.min(Math.max(this.speed, -this.maxSpeed), this.maxSpeed);
+    // 2.3. Prevent small jitter when nearly stopped
+    if (Math.abs(this.speed) < 0.001) this.speed = 0;
+  }
+
+  move(distance) {
+    // 4.1. Determine steering rotation (how much to turn when moving)
+    const turnRotation = this.flGroup.rotation.y * distance / this.turnRotationLoss;
+    this.model.rotation.y += turnRotation;
+    // 4.2. Move according to velocity
     const angle = this.model.rotation.y;
-    this.model.position.x += Math.sin(angle) * distance;
-    //this.model.position.y += dy;
-    this.model.position.z += Math.cos(angle) * distance;
-    
-    // Wheel spin
-    const spin = direction * this.wheelSpinSpeed;
-    this.fl.rotation.x += spin;
-    this.fr.rotation.x += spin;
-    this.rl.rotation.x += spin;
-    this.rr.rotation.x += spin;
+    this.model.position.x -= Math.sin(angle) * distance;
+    this.model.position.z -= Math.cos(angle) * distance;
+    // 4.3. Spin the wheels according to movement
+    this.wheelSpinSpeed = distance;
+    this.fl.rotation.x -= this.wheelSpinSpeed;
+    this.fr.rotation.x -= this.wheelSpinSpeed;
+    this.rl.rotation.x -= this.wheelSpinSpeed;
+    this.rr.rotation.x -= this.wheelSpinSpeed;
+  }
+
+  turnWheels() {
+    if (!(this.currentSteeringAngle === this.targetSteeringAngle)) {
+      const diff = this.targetSteeringAngle - this.currentSteeringAngle;
+      if (Math.abs(diff) > this.steerApproximation) {
+        const step = this.steeringSpeed * (this.time.delta / 1000);
+
+        if (Math.abs(diff) < step) {
+          this.currentSteeringAngle = this.targetSteeringAngle;
+        } else {
+          this.currentSteeringAngle += Math.sign(diff) * step;
+        }
+      } else {
+        this.currentSteeringAngle = this.targetSteeringAngle;
+      }
+      this.flGroup.rotation.y = this.currentSteeringAngle;
+      this.frGroup.rotation.y = this.currentSteeringAngle;
+    }
   }
 
   update() {
     if (!this.model) return;
-    // Determine steering rotation (how much to turn when moving)
-    const turnRotation = this.flGroup.rotation.y * this.speed / this.turnRotationLoss;
-    // Forward and backward motion
-    let moveDir = 0;
-    if (this.keysPressed.ArrowUp) {
-      this.model.rotation.y += turnRotation;
-      moveDir = -1;
-    }
-    if (this.keysPressed.ArrowDown) {
-      this.model.rotation.y -= turnRotation;
-      moveDir = 1;
-    }
-    this.move(moveDir * this.speed, moveDir)
-    // For turning
-    if (!(this.currentSteeringAngle === this.targetSteeringAngle)) {
-      this.turnWheels();
-    }
+    // 1. Handle input to set acceleration
+    this.calculateAcc();
+    // 2. Calculate speed
+    this.calculateSpeed();
+    // 3. Calculate distance
+    const distance = this.speed * (this.time.delta/1000);
+    // 4. Move car
+    this.move(distance);
+    // 5. Steer wheels
+    this.turnWheels();
   }
 
   loadDebugger() {
@@ -195,9 +221,21 @@ export default class Car {
       this.debugFolder = this.debug.ui.addFolder('car');
 
       this.debugFolder
-          .add(this, 'speed')
-          .name('car_speed')
-          .min(0).max(10).step(0.01);
+          .add(this, 'maxSpeed')
+          .name('max_speed')
+          .min(5).max(30).step(0.1);
+      this.debugFolder
+          .add(this, 'accelRate')
+          .name('acceleration')
+          .min(1).max(50).step(0.1);
+      this.debugFolder
+          .add(this, 'decelRate')
+          .name('braking')
+          .min(1).max(75).step(0.1);
+      this.debugFolder
+          .add(this, 'friction')
+          .name('friction')
+          .min(0).max(50).step(0.1);
       this.debugFolder
           .add(this, 'turnRotationLoss')
           .name('turn_\"friction\"')
