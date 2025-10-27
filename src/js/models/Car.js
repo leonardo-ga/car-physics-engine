@@ -49,13 +49,6 @@ export default class Car {
     this.currentSteeringAngle = 0;
     this.targetSteeringAngle = 0;
     this.steerApproximation = 0.001;
-
-    // other
-    this.direction = {
-      x: 1,
-      y: 0,
-      z: 0
-    }
   }
 
   loadModel() {
@@ -161,32 +154,36 @@ export default class Car {
     this.frGroup.rotation.y = this.currentSteeringAngle;
   }
 
-  move(dx, dy, dz, dir) {
+  move(distance, direction) {
     // Model movement
-    this.model.position.x += dx;
-    this.model.position.y += dy;
-    this.model.position.z += dz;
+    const angle = this.model.rotation.y;
+    this.model.position.x += Math.sin(angle) * distance;
+    //this.model.position.y += dy;
+    this.model.position.z += Math.cos(angle) * distance;
+    
     // Wheel spin
-    this.fl.rotation.x += dir * this.wheelSpinSpeed;
-    this.fr.rotation.x += dir * this.wheelSpinSpeed;
-    this.rl.rotation.x += dir * this.wheelSpinSpeed;
-    this.rr.rotation.x += dir * this.wheelSpinSpeed;
+    const spin = direction * this.wheelSpinSpeed;
+    this.fl.rotation.x += spin;
+    this.fr.rotation.x += spin;
+    this.rl.rotation.x += spin;
+    this.rr.rotation.x += spin;
   }
 
-  update() {//TODO: see what I can do about the '-' sign
-    if (!this.model) {
-      return;
-    }
-    // For drive and reverse
+  update() {
+    if (!this.model) return;
+    // Determine steering rotation (how much to turn when moving)
     const turnRotation = this.flGroup.rotation.y * this.speed / this.turnRotationLoss;
+    // Forward and backward motion
+    let moveDir = 0;
     if (this.keysPressed.ArrowUp) {
       this.model.rotation.y += turnRotation;
-      this.move(-Math.sin(this.model.rotation.y) * this.speed, 0 , -Math.cos(this.model.rotation.y) * this.speed, -1)
+      moveDir = -1;
     }
     if (this.keysPressed.ArrowDown) {
       this.model.rotation.y -= turnRotation;
-      this.move(Math.sin(this.model.rotation.y) * this.speed, 0 , Math.cos(this.model.rotation.y) * this.speed, 1)
+      moveDir = 1;
     }
+    this.move(moveDir * this.speed, moveDir)
     // For turning
     if (!(this.currentSteeringAngle === this.targetSteeringAngle)) {
       this.turnWheels();
