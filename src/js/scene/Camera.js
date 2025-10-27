@@ -56,7 +56,6 @@ export default class Camera {
       // Compute desired camera position (position only)
       let followOffset = (new THREE.Vector3()).copy(this.followOffsetDir).setLength(this.distanceFromObj);
       this.desiredPos.copy(this.carWorldPos).add(followOffset);
-      console.log(((new THREE.Vector3()).subVectors(this.instance.position, this.carWorldPos)).length())
 
       // Smoothly move the camera toward that position
       this.instance.position.lerp(this.desiredPos, this.lerpFactor);
