@@ -19,7 +19,8 @@ export default class Camera {
   }
 
   loadParameters() {
-    this.followOffset = new THREE.Vector3(0, 10, 10);
+    this.followOffsetDir = new THREE.Vector3(0, 1, 1);
+    this.distanceFromObj = 15;
     this.desiredPos = new THREE.Vector3();
     this.carWorldPos = new THREE.Vector3();
     this.lerpFactor = 0.1;
@@ -29,7 +30,7 @@ export default class Camera {
 
   loadCamera() {
     this.instance = new THREE.PerspectiveCamera(75, this.sizes.width / this.sizes.height, 0.1, 100);
-    this.instance.position.set(0, 10, 10);
+    this.instance.position.copy(this.followOffsetDir.multiplyScalar(this.distanceFromObj));
     this.instance.lookAt(this.world.car.model.position);
     this.scene.add(this.instance);
   }
@@ -53,7 +54,9 @@ export default class Camera {
     this.car.model.getWorldPosition(this.carWorldPos);
     if (isMoving || this.isStillMoving) {
       // Compute desired camera position (position only)
-      this.desiredPos.copy(this.carWorldPos).add(this.followOffset);
+      let followOffset = (new THREE.Vector3()).copy(this.followOffsetDir).setLength(this.distanceFromObj);
+      this.desiredPos.copy(this.carWorldPos).add(followOffset);
+      console.log(((new THREE.Vector3()).subVectors(this.instance.position, this.carWorldPos)).length())
 
       // Smoothly move the camera toward that position
       this.instance.position.lerp(this.desiredPos, this.lerpFactor);
@@ -67,6 +70,9 @@ export default class Camera {
 
     // OrbitControls update
     this.controls.update();
+
+    // Save distance from camera to target, to use for movement
+    this.distanceFromObj = this.controls.getDistance();
   }
 
 }
