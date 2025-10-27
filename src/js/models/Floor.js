@@ -6,10 +6,12 @@ export default class Floor {
     constructor() {
         this.base = new Base();
         this.scene = this.base.scene;
+        this.debug = this.base.debug;
 
         this.setGeometry();
         this.setMaterial();
         this.setMesh();
+        this.loadDebugger();
     }
 
     setGeometry() {
@@ -29,6 +31,15 @@ export default class Floor {
         this.mesh.rotation.x = - Math.PI * 0.5
         this.mesh.receiveShadow = true;
         this.scene.add(this.mesh);
+    }
+
+    loadDebugger() {
+        if(this.debug.active) {
+        this.debugFolder = this.debug.ui.addFolder('floor');
+
+        this.debugFolder
+            .add(this.material, 'wireframe');
+        }
     }
 
 }

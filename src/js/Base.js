@@ -5,6 +5,7 @@ import Keys from './utils/Keys';
 import Renderer from './scene/Renderer';
 import Camera from './scene/Camera';
 import World from './models/World';
+import Debug from './utils/Debug'
 
 // Singleton
 let instance = null;
@@ -24,6 +25,7 @@ export default class Base {
 
         // Options
         this.canvas = canvas;
+        this.debug = new Debug();
         this.sizes = new Sizes();
         this.time = new Time();
         this.keys = new Keys();

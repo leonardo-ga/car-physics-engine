@@ -6,6 +6,7 @@ export default class Car {
   constructor() {
     this.base = new Base();
     this.scene = this.base.scene;
+    this.debug = this.base.debug;
     this.time = this.base.time;
     this.keys = this.base.keys;
     this.keysPressed = this.keys.keysPressed;
@@ -13,6 +14,7 @@ export default class Car {
     this.loadParameters();
     this.loadModel();
     this.loadEvents();
+    this.loadDebugger();
   }
 
   loadParameters() {
@@ -188,6 +190,29 @@ export default class Car {
     // For turning
     if (!(this.currentSteeringAngle === this.targetSteeringAngle)) {
       this.turnWheels();
+    }
+  }
+
+  loadDebugger() {
+    if(this.debug.active) {
+      this.debugFolder = this.debug.ui.addFolder('car');
+
+      this.debugFolder
+          .add(this, 'speed')
+          .name('car_speed')
+          .min(0).max(10).step(0.01);
+      this.debugFolder
+          .add(this, 'turnRotationLoss')
+          .name('turn_\"friction\"')
+          .min(0.1).max(10).step(0.1);
+      this.debugFolder
+          .add(this, 'steeringAngle')
+          .name('max_steering_angle')
+          .min(0).max(Math.PI/2).step(0.01);
+      this.debugFolder
+          .add(this, 'steeringSpeed')
+          .name('steering_animation_speed')
+          .min(0.1).max(10).step(0.1);
     }
   }
 
