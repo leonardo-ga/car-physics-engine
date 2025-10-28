@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import Sizes from './utils/Sizes';
 import Time from './utils/Time';
-import Keys from './utils/Keys';
+import Inputs from './utils/Inputs';
 import Renderer from './scene/Renderer';
 import Camera from './scene/Camera';
 import World from './models/World';
@@ -28,7 +28,7 @@ export default class Base {
         this.debug = new Debug();
         this.sizes = new Sizes();
         this.time = new Time();
-        this.keys = new Keys();
+        this.inputs = new Inputs();
 
         this.scene = new THREE.Scene();
         this.world = new World();

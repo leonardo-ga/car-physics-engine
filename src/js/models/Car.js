@@ -8,8 +8,8 @@ export default class Car {
     this.scene = this.base.scene;
     this.debug = this.base.debug;
     this.time = this.base.time;
-    this.keys = this.base.keys;
-    this.keysPressed = this.keys.keysPressed;
+    this.inputs = this.base.inputs;
+    this.inputsActions = this.inputs.actions;
 
     this.loadParameters();
     this.loadModel();
@@ -130,24 +130,24 @@ export default class Car {
   }
 
   loadEvents() {
-    // Keys keydown/keyup events
-    this.keys.on('keydown', (key) => {
-      if(key === "ArrowLeft") this.targetSteeringAngle += this.steeringAngle;
-      else if(key === "ArrowRight") this.targetSteeringAngle -= this.steeringAngle;
+    // Inputs !keydown/keyup events
+    this.inputs.on('!keydown', (key) => {
+      if(key === 'ArrowLeft' || key === 'KeyA') this.targetSteeringAngle += this.steeringAngle;
+      else if(key === 'ArrowRight' || key === 'KeyD') this.targetSteeringAngle -= this.steeringAngle;
     });
-    this.keys.on('keyup', (key) => {
-      if(key === "ArrowLeft") this.targetSteeringAngle -= this.steeringAngle;
-      else if(key === "ArrowRight") this.targetSteeringAngle += this.steeringAngle;
+    this.inputs.on('keyup', (key) => {
+      if(key === 'ArrowLeft' || key === 'KeyA') this.targetSteeringAngle -= this.steeringAngle;
+      else if(key === 'ArrowRight' || key === 'KeyD') this.targetSteeringAngle += this.steeringAngle;
     });
   }
 
   calculateAcc() {
-    if (this.keysPressed.ArrowUp) {
+    if (this.inputsActions.up) {
       this.acceleration = this.accelRate;   // accelerate forward
-    } else if (this.keysPressed.ArrowDown) {
+    } else if (this.inputsActions.down) {
       this.acceleration = -this.decelRate;  // accelerate backward (brake/reverse)
     } else {
-      // No key: apply friction toward 0 velocity
+      // No inputs: apply friction toward 0 velocity
       if (this.speed > 0) {
         this.acceleration = -this.friction;
       } else if (this.speed < 0) {

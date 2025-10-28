@@ -10,7 +10,7 @@ export default class Camera {
     this.world = this.base.world;
     this.car = this.world.car;
     this.sizes = this.base.sizes;
-    this.keys = this.base.keys;
+    this.inputs = this.base.inputs;
 
     this.loadParameters();
     this.loadCamera();
@@ -50,7 +50,7 @@ export default class Camera {
 
   update() {
     // Follow (and look at) car
-    let isMoving = this.keys.keysPressed.ArrowUp || this.keys.keysPressed.ArrowDown;
+    let isMoving = this.inputs.actions.up || this.inputs.actions.down;
     this.car.model.getWorldPosition(this.carWorldPos);
     if (isMoving || this.isStillMoving) {
       // Compute desired camera position (position only)
