@@ -64,7 +64,7 @@ export default class CarPhysics {
     const drag = this.dragCoefficient * speed * speed * dir;
 
     // 4. ROLLING RESISTANCE (tires)
-    const rolling = this.rollingResistance * dir;
+    const rolling = this.rollingResistance * speed * dir;
 
     // Combine resistance forces
     totalForce -= drag + rolling;
