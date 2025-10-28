@@ -24,10 +24,10 @@ export default class Car {
     this.speed = 0;           // current velocity (m/s)
     this.wheelSpinSpeed = 0;  // current wheel spin velocity
     this.acceleration = 0;    // current acceleration (m/s^2)
-    this.maxSpeed = 10;       // max velocity
-    this.accelRate = 10;      // how fast it accelerates (m/s^2)
-    this.decelRate = 15;      // braking rate
-    this.friction = 2;        // natural slowdown (m/s^2)
+    this.maxSpeed = 30;       // max velocity
+    this.accelRate = 15;      // how fast it accelerates (m/s^2)
+    this.decelRate = 20;      // braking rate
+    this.friction = 5;        // natural slowdown (m/s^2)
     this.turnRotationLoss = 5;
 
     /**
