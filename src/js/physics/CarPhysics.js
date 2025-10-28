@@ -45,13 +45,13 @@ export default class CarPhysics {
         totalForce += this.engineForce * (boost ? this.boostMultiplier : 1);
       } else {
         // braking before reversing direction
-        totalForce += this.brakeForce;
+        if (!brake) totalForce += this.brakeForce;
       }
     } else if (down && !up) {
       if (speed <= 0) {
         totalForce -= this.reverseForce * (boost ? this.boostMultiplier : 1);
       } else {
-        totalForce -= this.brakeForce;
+        if (!brake) totalForce -= this.brakeForce;
       }
     }
 
@@ -87,14 +87,6 @@ export default class CarPhysics {
     //this.car.position.addScaledVector(forward, this.speed * this.time.delta);
 
     this.updateStatsPanel();
-  }
-
-  updateStatsPanel() {
-    if (this.debug.active) {
-      this.debug.stats.speed = Number.parseFloat(this.speed).toFixed(2);
-      this.debug.stats.accel = Number.parseFloat(this.acceleration).toFixed(2);
-      this.debug.stats.engineForce = Number.parseFloat(this.totalForce).toFixed(2);
-    }
   }
 
   loadDebugger(debugFolder) {
@@ -133,6 +125,14 @@ export default class CarPhysics {
           .add(this, 'maxSpeed')
           .name('max_speed')
           .min(10).max(100).step(0.1);
+    }
+  }
+
+  updateStatsPanel() {
+    if (this.debug.active) {
+      this.debug.stats.speed = Number.parseFloat(this.speed).toFixed(2);
+      this.debug.stats.accel = Number.parseFloat(this.acceleration).toFixed(2);
+      this.debug.stats.engineForce = Number.parseFloat(this.totalForce).toFixed(2);
     }
   }
 
