@@ -5,15 +5,32 @@ export default class Inputs extends Events {
     constructor() {
         super();
 
-        this.actions = {}
-        this.actions.up = false
-        this.actions.right = false
-        this.actions.down = false
-        this.actions.left = false
-        this.actions.brake = false
-        this.actions.boost = false
+        this.setActions();
 
         this.setKeyboard();
+    }
+
+    setActions() {
+        this.actions = {};
+        this.actions.up = false;
+        this.actions.right = false;
+        this.actions.down = false;
+        this.actions.left = false;
+        this.actions.brake = false;
+        this.actions.boost = false;
+
+        document.addEventListener('visibilitychange', () =>
+        {
+            if(!document.hidden)
+            {
+                this.actions.up = false
+                this.actions.right = false
+                this.actions.down = false
+                this.actions.left = false
+                this.actions.brake = false
+                this.actions.boost = false
+            }
+        });
     }
 
     setKeyboard() {

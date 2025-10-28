@@ -160,7 +160,7 @@ export default class Car {
 
   calculateSpeed() {
     // 2.1. Update velocity (integrate acceleration)
-    this.speed += this.acceleration * (this.time.delta/1000);
+    this.speed += this.acceleration * this.time.delta;
     // 2.2. Clamp to limits
     this.speed = Math.min(Math.max(this.speed, -this.maxSpeed), this.maxSpeed);
     // 2.3. Prevent small jitter when nearly stopped
@@ -187,7 +187,7 @@ export default class Car {
     if (!(this.currentSteeringAngle === this.targetSteeringAngle)) {
       const diff = this.targetSteeringAngle - this.currentSteeringAngle;
       if (Math.abs(diff) > this.steerApproximation) {
-        const step = this.steeringSpeed * (this.time.delta / 1000);
+        const step = this.steeringSpeed * this.time.delta;
 
         if (Math.abs(diff) < step) {
           this.currentSteeringAngle = this.targetSteeringAngle;
@@ -209,7 +209,7 @@ export default class Car {
     // 2. Calculate speed
     this.calculateSpeed();
     // 3. Calculate distance
-    const distance = this.speed * (this.time.delta/1000);
+    const distance = this.speed * this.time.delta;
     // 4. Move car
     this.move(distance);
     // 5. Steer wheels
