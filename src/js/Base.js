@@ -63,6 +63,7 @@ export default class Base {
     update() {
         this.camera.update();
         this.world.update();
+        this.debug.update();
         this.renderer.update();
     }
 
