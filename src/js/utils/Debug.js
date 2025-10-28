@@ -4,6 +4,7 @@ export default class Debug {
 
     constructor() {
         this.active = window.location.hash === '#debug';
+        this.statsPanel = document.querySelector('div.statsPanel');
 
         if(this.active) {
             this.ui = new dat.GUI();
@@ -12,7 +13,8 @@ export default class Debug {
                 accel: 0,
                 engineForce: 0
             };
-            this.statsPanel = document.querySelector('div.statsPanel');
+        } else {
+            this.statsPanel.style.display = 'none';
         }
     }
 

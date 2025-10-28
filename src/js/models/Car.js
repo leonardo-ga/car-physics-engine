@@ -305,9 +305,10 @@ export default class Car {
           .add(this, 'steeringSpeed')
           .name('steering_animation_speed')
           .min(0.1).max(10).step(0.1);
+
+      this.carPhysics.loadDebugger(this.debugFolder);
+      this.updateCarFolder();
     }
-    this.carPhysics.loadDebugger(this.debugFolder);
-    this.updateCarFolder();
   }
 
   updateCarFolder(isRealPhysics) {
