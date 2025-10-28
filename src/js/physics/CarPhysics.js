@@ -104,19 +104,19 @@ export default class CarPhysics {
       this.physicsDebugFolder
           .add(this, 'mass')
           .name('mass')
-          .min(0).max(3000).step(1);
+          .min(0).max(5000).step(1);
       this.physicsDebugFolder
           .add(this, 'engineForce')
           .name('engine_force')
-          .min(0).max(1000).step(1);
+          .min(0).max(20000).step(10);
       this.physicsDebugFolder
           .add(this, 'reverseForce')
           .name('reverse_force')
-          .min(0).max(1000).step(1);
+          .min(0).max(20000).step(10);
       this.physicsDebugFolder
           .add(this, 'brakeForce')
           .name('brake_force')
-          .min(1).max(2000).step(1);
+          .min(0).max(20000).step(10);
       this.physicsDebugFolder
           .add(this, 'boostMultiplier')
           .name('boost_multiplier')
