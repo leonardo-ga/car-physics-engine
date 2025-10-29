@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import Base from '../Base';
-import CarPhysics from '../physics/CarPhysics';
+import CarPhysics_v02 from '../physics/CarPhysics_v02';
+import CarPhysics_v01 from '../physics/CarPhysics_v01';
 
+/**
+ * @deprecated The class Car_v01 was a basic Car model that has been replaced.
+ */
 export default class Car {
 
   constructor() {
@@ -12,10 +16,10 @@ export default class Car {
     this.inputs = this.base.inputs;
     this.inputsActions = this.inputs.actions;
 
-    this.carPhysics = new CarPhysics();
+    this.carPhysics_v01 = new CarPhysics_v01();
+    this.carPhysics_v02 = new CarPhysics_v02();
 
     this.loadDefaultParameters();
-    this.initializeCurrentParameters();
     this.loadModel();
     this.loadEvents();
     this.loadDebugger();
@@ -26,17 +30,6 @@ export default class Car {
      * Meta-parameters
      */
     this.isRealPhysics = false;
-
-    /**
-     * Model
-     */
-    this.maxSpeed = 30;             // max velocity
-    this.accelRate = 15;            // how fast it accelerates (m/s^2)
-    this.brakeRate = 20;            // braking rate
-    this.reverseAccelRate = 10;     // acceleration rate in reverse (m/s^2)
-    this.friction = 5;              // natural slowdown (m/s^2)
-    this.boostAccelMultiplier = 1.5   // when boost, accelRate gets multiplied by this
-    this.turnRotationLoss = 5;
     /**
      * Chassis
      */
@@ -53,21 +46,17 @@ export default class Car {
       thickness: 0.5,
       precision: 8
     }
-    // For steering
-    this.steeringAngle = Math.PI/6;
-    this.steeringSpeed = Math.PI;
-    this.steerApproximation = 0.001;
-  }
-
-  initializeCurrentParameters() {
-    // For movement
-    this.speed = 0;                 // current velocity (m/s)
-    this.wheelSpinSpeed = 0;        // current wheel spin velocity
-    this.acceleration = 0;          // current acceleration (m/s^2)
-
-    // For steering
+    /**
+     * THIS IS TOO MUCH!!!!!!!!!
+     */
+    this.turnRotationLoss = 5;
+    // For steering: dynamic
     this.currentSteeringAngle = 0;
     this.targetSteeringAngle = 0;
+    // For steering: static
+    this.steeringAngle = Math.PI / 6;
+    this.steeringSpeed = Math.PI;
+    this.steerApproximation = 0.001;
   }
 
   loadModel() {
@@ -157,55 +146,6 @@ export default class Car {
     });
   }
 
-  calculateAcc() {
-    if (this.inputsActions.brake) {
-      // BRAKE has priority over other actions
-      if (this.speed > 0) {
-        this.acceleration = -this.brakeRate;
-      } else if (this.speed < 0) {
-        this.acceleration = this.brakeRate;
-      } else {
-        this.acceleration = 0;
-      }
-    } else if (this.inputsActions.up && !this.inputsActions.down) {
-      // Only UP is activated
-      if (this.speed >= 0) {
-        this.acceleration = this.accelRate;   // accelerate forward
-        if (this.inputsActions.boost) this.acceleration *= this.boostAccelMultiplier;
-      } else {
-        this.acceleration = this.brakeRate; 
-      }
-    } else if (this.inputsActions.down && !this.inputsActions.up) {
-      // Only DOWN is activated
-      if (this.speed <= 0) {
-        this.acceleration = -this.reverseAccelRate;
-        if (this.inputsActions.boost) this.acceleration *= this.boostAccelMultiplier;
-      } else {
-        this.acceleration = -this.brakeRate;  // accelerate backward (brake/reverse)
-      }
-    } else {
-      // No inputs: apply friction toward 0 velocity
-      if (this.speed > 0) {
-        this.acceleration = -this.friction;
-      } else if (this.speed < 0) {
-        this.acceleration = this.friction;
-      } else {
-        this.acceleration = 0;
-      }
-    }
-  }
-
-  calculateSpeed() {
-    // 2.1. Update velocity (integrate acceleration)
-    this.speed += this.acceleration * this.time.delta;
-    // 2.2. Clamp to limits
-    let maxSpeedBoost = this.maxSpeed;
-    if (this.inputsActions.boost) maxSpeedBoost *= this.boostAccelMultiplier;
-    this.speed = Math.min(Math.max(this.speed, -maxSpeedBoost), maxSpeedBoost);
-    // 2.3. Prevent small jitter when nearly stopped
-    if (Math.abs(this.speed) < 0.001) this.speed = 0;
-  }
-
   move(distance) {
     // 4.1. Determine steering rotation (how much to turn when moving)
     const turnRotation = this.flGroup.rotation.y * distance / this.turnRotationLoss;
@@ -244,17 +184,16 @@ export default class Car {
   update() {
     if (!this.model) return;
     // Handle input to set acceleration and speed
+    let speed = 0;
     if(this.isRealPhysics) {
-      this.carPhysics.update();
-      this.speed = this.carPhysics.speed;
+      this.carPhysics_v02.update();
+      speed = this.carPhysics_v02.speed;
     } else {
-      this.calculateAcc();
-      this.calculateSpeed();
-      // Update stats to display
-      this.updateStatsPanel();
+      this.carPhysics_v01.update();
+      speed = this.carPhysics_v01.speed;
     }
     // Calculate distance
-    const distance = this.speed * this.time.delta;
+    const distance = speed * this.time.delta;
     // Move car
     this.move(distance);
     // Steer wheels
@@ -274,64 +213,37 @@ export default class Car {
           .name('is_real_physics').onChange((value) => {
             this.updateCarFolder(value);
           });
-      
-      // Folder with arcade like physics
-      this.arcadeDebugFolder = this.debugFolder.addFolder('arcade_physics');
-      this.arcadeDebugFolder
-          .add(this, 'maxSpeed')
-          .name('max_speed')
-          .min(5).max(30).step(0.1);
-      this.arcadeDebugFolder
-          .add(this, 'accelRate')
-          .name('acceleration')
-          .min(1).max(50).step(0.1);
-      this.arcadeDebugFolder
-          .add(this, 'brakeRate')
-          .name('braking')
-          .min(1).max(75).step(0.1);
-      this.arcadeDebugFolder
-          .add(this, 'friction')
-          .name('friction')
-          .min(0).max(50).step(0.1);
-      this.arcadeDebugFolder
+      this.debugFolder
           .add(this, 'turnRotationLoss')
           .name('turn_\"friction\"')
           .min(0.1).max(10).step(0.1);
-      this.arcadeDebugFolder
+      this.debugFolder
           .add(this, 'steeringAngle')
           .name('max_steering_angle')
           .min(0).max(Math.PI/2).step(0.01);
-      this.arcadeDebugFolder
+      this.debugFolder
           .add(this, 'steeringSpeed')
           .name('steering_animation_speed')
           .min(0.1).max(10).step(0.1);
 
-      this.carPhysics.loadDebugger(this.debugFolder);
+      this.carPhysics_v01.loadDebugger(this.debugFolder);
+      this.carPhysics_v02.loadDebugger(this.debugFolder);
       this.updateCarFolder();
     }
   }
 
   updateCarFolder(isRealPhysics) {
       // Restore parameter values
-      this.initializeCurrentParameters();
-      this.carPhysics.initializeCurrentParameters();
+      this.carPhysics_v01.initializeCurrentParameters();
+      this.carPhysics_v02.initializeCurrentParameters();
     if (isRealPhysics) {
       // Show physics folder, hide normal one
-      this.arcadeDebugFolder.domElement.style.display = 'none';
-      this.carPhysics.physicsDebugFolder.domElement.style.display = '';
+      this.carPhysics_v01.arcadeDebugFolder.domElement.style.display = 'none';
+      this.carPhysics_v02.physicsDebugFolder.domElement.style.display = '';
     } else {
       // Show normal folder, hide physics one
-      this.carPhysics.physicsDebugFolder.domElement.style.display = 'none';
-      this.arcadeDebugFolder.domElement.style.display = '';
-    }
-  }
-
-  updateStatsPanel() {
-    if (this.debug.active) {
-      this.debug.stats.speed = Number.parseFloat(this.speed).toFixed(2);
-      this.debug.stats.accel = Number.parseFloat(this.acceleration).toFixed(2);
-      this.debug.stats.engineForce = undefined;
-    }
+      this.carPhysics_v01.arcadeDebugFolder.domElement.style.display = '';
+      this.carPhysics_v02.physicsDebugFolder.domElement.style.display = 'none';    }
   }
 
 }

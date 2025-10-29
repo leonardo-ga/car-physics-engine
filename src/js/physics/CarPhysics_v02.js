@@ -1,6 +1,9 @@
 import Base from '../Base';
 
-export default class CarPhysics {
+/**
+ * @deprecated The class CarPhysics_v02 was a basic Physics car model that has been replaced.
+ */
+export default class CarPhysics_v02 {
 
   constructor() {
     this.base = new Base();
