@@ -6,6 +6,7 @@ import Renderer from './scene/Renderer';
 import Camera from './scene/Camera';
 import World from './models/World';
 import Debug from './utils/Debug'
+import SafeMath from './utils/SafeMath';
 
 // Singleton
 let instance = null;
@@ -29,6 +30,7 @@ export default class Base {
         this.sizes = new Sizes();
         this.time = new Time();
         this.inputs = new Inputs();
+        this.SafeMath = new SafeMath();
 
         this.scene = new THREE.Scene();
         this.world = new World();
