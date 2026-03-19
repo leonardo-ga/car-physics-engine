@@ -1,6 +1,6 @@
 # Car physics engine
 
-> *Work in progress!!*
+> *Work still in progress!!*
 
 ``` bash
 # Install dependencies (only the first time)
