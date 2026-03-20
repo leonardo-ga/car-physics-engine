@@ -72,6 +72,11 @@ export default class Base {
     destroy() {
         this.sizes.off('resize');
         this.time.off('tick');
+        this.inputs.off('!keydown');
+        this.inputs.off('keyup');
+        this.sizes.destroy();
+        this.time.destroy();
+        this.inputs.destroy();
 
         // Traverse the whole scene
         this.scene.traverse((child) => {
@@ -93,6 +98,9 @@ export default class Base {
         if(this.debug.active) {
             this.debug.ui.destroy();
         }
+
+        window.experience = null;
+        instance = null;
         // What is left is the canvas with last render...
     }
 

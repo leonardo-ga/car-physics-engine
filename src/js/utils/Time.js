@@ -15,7 +15,7 @@ export default class Time extends Events {
         this.loadEvents();
         
         this._tickBound = this.tick.bind(this);
-        requestAnimationFrame(this._tickBound);
+        this.rafId = requestAnimationFrame(this._tickBound);
     }
 
     tick() {
@@ -26,19 +26,22 @@ export default class Time extends Events {
 
         if (!this.isPaused) this.trigger('tick');
 
-        requestAnimationFrame(this._tickBound);
+        this.rafId = requestAnimationFrame(this._tickBound);
     }
 
     loadEvents() {
         // Handle tab visibility
-        document.addEventListener('visibilitychange', () => {
+        this.handleVisibilityChange = () => {
             if (document.hidden) {
                 this.isPaused = true;
             } else {
                 this.start = performance.now();
+                this.current = this.start;
                 this.isPaused = false;
             }
-        });
+        };
+
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
 
         // Handle focus loss
         /*window.addEventListener('blur', () => {
@@ -49,6 +52,11 @@ export default class Time extends Events {
             this.start = performance.now();
             this.isPaused = false;
         });*/
+    }
+
+    destroy() {
+        document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+        cancelAnimationFrame(this.rafId);
     }
 
 }

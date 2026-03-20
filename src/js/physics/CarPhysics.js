@@ -1,411 +1,350 @@
 import * as THREE from 'three';
-import Base from '../Base';
-import SafeMath from '../utils/SafeMath'
 
 export default class CarPhysics {
 
     constructor(params = {}) {
-        this.base = new Base();
-        this.scene = this.base.scene;
+        const safeMath = params.safeMath || {};
 
-        this.debug = this.base.debug;
-        this.time = this.base.time;
-        this.inputs = this.base.inputs;
-        this.inputsActions = this.inputs.actions;
-
-        this.SafeMath = this.base.SafeMath;
+        this.debug = params.debug || { active: false, stats: {} };
+        this.time = params.time || { delta: 0 };
+        this.inputsActions = params.inputsActions || {};
+        this.safeMath = {
+            cos: typeof safeMath.cos === 'function' ? safeMath.cos.bind(safeMath) : Math.cos,
+            sin: typeof safeMath.sin === 'function' ? safeMath.sin.bind(safeMath) : Math.sin
+        };
 
         this.loadDefaultParameters(params);
         this.initializeCurrentParameters();
-
-        // Debug
         this.loadDebugger();
     }
 
     loadDefaultParameters(params) {
-        this.mass = params.mass || 1200;                    // [kg]
-        this.rearWheelMass = params.rearWheelMass || 75;    // [kg]
-        this.frontWheelMass = params.frontWheelMass || 75;  // [kg]
-        this.wheelBase = params.wheelBase || 2.6; // L = distance between axles [m]
-        this.cgToFront = params.cgToFront || 1.3; // b [m] distance from CG to front axle
-        this.cgToRear = this.wheelBase - this.cgToFront; // c [m]
-        this.cgHeight = params.cgHeight || 0.45; // h [m]
-        this.inertiaYaw = params.inertiaYaw || 1500; // approximate yaw moment of inertia [kg*m^2]
+        this.mass = params.mass || 1200;
+        this.rearWheelMass = params.rearWheelMass || 75;
+        this.frontWheelMass = params.frontWheelMass || 75;
+        this.wheelBase = params.wheelBase || 2.6;
+        this.cgToFront = params.cgToFront || 1.3;
+        this.cgToRear = this.wheelBase - this.cgToFront;
+        this.cgHeight = params.cgHeight || 0.45;
+        this.inertiaYaw = params.inertiaYaw || 1500;
 
-        // longitudinal constants
-        this.C_drag = params.C_drag || 0.4257; // drag coefficient used in the article example
-        this.C_rr = params.C_rr || 12.8;   // rolling resistance approx. 30x drag as article
-        this.engineForceMax = params.engineForceMax || 6000; // peak drive force [N], simplified
-        this.brakeForceMax = params.brakeForceMax || 10000; // braking force [N]
+        this.C_drag = params.C_drag || 0.4257;
+        this.C_rr = params.C_rr || 12.8;
+        this.engineForceMax = params.engineForceMax || 6000;
+        this.brakeForceMax = params.brakeForceMax || 10000;
+        this.brakeBiasFront = params.brakeBiasFront || 0.62;
         this.g = 9.81;
 
-        // for torque
         this.idleRPM = 1000;
         this.minRPM = 2500;
         this.maxRPM = 5500;
         this.currentGear = 1;
         this.maxGear = 6;
-        this.gearRatios = new Array(-2.90, 2.66, 1.78, 1.30, 1.00, 0.74, 0.50);// gears: R, 1, 2, 3, 4, 5, 6
+        this.gearRatios = [-2.90, 2.66, 1.78, 1.30, 1.00, 0.74, 0.50];
         this.diffRatio = 3.42;
         this.transmissionEfficiency = 0.7;
-        this.rearWheelAngularVelocity = 0;    // [rad/s] calculated with slip
-        this.frontWheelAngularVelocity = 0;   // [rad/s] usually omega
+
+        this.rearWheelRadius = params.rearWheelRadius || 0.34;
+        this.frontWheelRadius = params.frontWheelRadius || 0.34;
+        this.mu = params.mu || 1.0;
+        this.tractionCurveSlope = params.tractionCurveSlope || 16.5;
+        this.cornerStiffnessFront = params.cornerStiffnessFront || 40000;
+        this.cornerStiffnessRear = params.cornerStiffnessRear || 40000;
+        this.maxSteer = params.maxSteer || 0.6;
+
+        this.pos = new THREE.Vector3(0, 1, 0);
+        this.vel = new THREE.Vector3(0, 0, 0);
+        this.angle = params.angle || 0;
+        this.omegaYaw = 0;
+
+        // Body-frame velocities.
+        this.vx = 0;
+        this.vy = 0;
+
+        this.rearWheelAngularVelocity = 0;
+        this.frontWheelAngularVelocity = 0;
         this.rearWheelAngularAcceleration = 0;
+        this.rearWheelRotationMovement = 0;
+        this.frontWheelRotationMovement = 0;
 
-        // for slip
-        this.C_t_perWheel = 20000;   // traction constant [N]
+        this.throttle = 0;
+        this.brake = 0;
+        this.steerAngle = 0;
+        this.clutch = 1;
 
-        // wheel / tire
-        this.rearWheelRadius = params.rearWheelRadius || 0.34;      // [m]
-        this.frontWheelRadius = params.frontWheelRadius || 0.34;    // [m]
-        this.mu = params.mu || 1.0; // friction coefficient for limiting lateral force
-        this.cornerStiffnessFront = params.cornerStiffnessFront || 8000; // [N/rad] per wheel (linear approximation)
-        this.cornerStiffnessRear = params.cornerStiffnessRear || 8000;
-
-        // dynamic state (2D)
-        this.pos = new THREE.Vector3(0, 1, 0);    // world position [m]
-        this.vel = new THREE.Vector3(0, 0, 0);    // velocity in world coords [m/s]
-        this.rearWheelRotationMovement = 0;      // Movement for rear wheel spin [m]
-        this.frontWheelRotationMovement = 0;     // Movement for front wheel spin [m]
-        this.angle = params.angle || 0;     // yaw angle [rad], 0 points along +X
-        this.omegaYaw = 0;                     // yaw rate [rad/s]
-
-        // control inputs (set externally)
-        this.throttle = 0;      // 0..1
-        this.brake = 0;         // 0..1
-        this.steerAngle = 0;    // [rad] (front wheel steer angle), limited below
-        this.clutch = 1;        // TODO: this is always 1 (could be 0 if we push the clutch)
-
-        // steering limits
-        this.maxSteer = 0.6; // [rad] ~34 degrees
-
-        // stats
         this.speed = 0;
         this.longForce = 0;
         this.acceleration = 0;
+        this.longitudinalAcceleration = 0;
+        this.lateralAcceleration = 0;
         this.Wf = 0;
         this.Wr = 0;
+        this.staticWf = 0;
+        this.staticWr = 0;
         this.engineRPM = 0;
+        this.beta = 0;
+        this.alphaFront = 0;
+        this.alphaRear = 0;
+        this.slipRatio = 0;
+        this.driveTorque = 0;
+        this.rearTractionTorque = 0;
+        this.rearBrakeTorque = 0;
 
-        // For traction and brake torque
-        this.Wr_perWheel = 0;
-        this.F_norm_perRearWheel_max = 0;
+        this.F_tot = new THREE.Vector3(0, 0, 0);
+        this.F_long = new THREE.Vector3(0, 0, 0);
+        this.F_lat = new THREE.Vector3(0, 0, 0);
 
-        // For error approximations
+        this.axBody = 0;
+        this.ayBody = 0;
+        this.frontLongitudinalForce = 0;
+        this.rearLongitudinalForce = 0;
+        this.frontLateralForce = 0;
+        this.rearLateralForce = 0;
+        this.dragForce = 0;
+        this.rollingResistanceForce = 0;
+
         this.errApprox = 0.001;
-
-        // Forces calculated
-        this.F_tot = 0;
-        this.F_long = new THREE.Vector3(0, 0, 0);    // longitudinal force
-        this.F_lat = new THREE.Vector3(0, 0, 0);     // lateral force
-
-        // For turn slip angle
-        this.Fy_front = 0;
-        this.Fy_rear = 0;
-        this.L_rel_front = 0.3;
-        this.L_rel_rear  = 0.6;
+        this.lowSpeedThreshold = 2.0;
     }
 
-    initializeCurrentParameters() {//TODO
-        this.speed = 0;
-        this.totalForce = 0;
+    initializeCurrentParameters() {
+        this.setStaticLoads();
+        this.syncWorldVelocity();
+        this.updateWheelState();
     }
 
     getCarHeading() {
-        return new THREE.Vector3(this.SafeMath.cos(this.angle), 0, -this.SafeMath.sin(this.angle));
+        return new THREE.Vector3(this.safeMath.cos(this.angle), 0, -this.safeMath.sin(this.angle));
+    }
+
+    getCarLeftVector() {
+        const heading = this.getCarHeading();
+        return new THREE.Vector3(heading.z, 0, -heading.x);
+    }
+
+    syncWorldVelocity() {
+        const heading = this.getCarHeading();
+        const left = this.getCarLeftVector();
+        this.vel.copy(heading.multiplyScalar(this.vx).add(left.multiplyScalar(this.vy)));
     }
 
     update() {
         this.updateControls();
-        this.straightLine();
-
-        this.turn();
-
-        // Debug
+        this.stepDynamics();
+        this.updateWheelState();
+        this.stabilizeAtLowSpeed();
         this.updateStatsPanel();
     }
 
     updateControls() {
-        //this.throttle = this.inputsActions.up || this.inputsActions.down ? 1 : 0;
-        // Brake pedal
+        this.throttle = 0;
         this.brake = this.inputsActions.brake ? 1 : 0;
-        // UP input
-        if (this.inputsActions.up && this.speed > - this.errApprox) {// If UP and going UP => throttle
+
+        if (this.inputsActions.up && this.speed > -this.errApprox) {
             this.throttle = 1;
-            if (this.currentGear === 0) {// If was in REVERSE => put 1 gear
+            if (this.currentGear === 0) {
                 this.currentGear = 1;
             }
-        } else if (this.inputsActions.up && this.speed <= - this.errApprox) {// If Up and going DOWN => brake
+        } else if (this.inputsActions.up && this.speed <= -this.errApprox) {
             this.brake = 1;
         }
-        // DOWN input
-        if (this.inputsActions.down && this.speed < this.errApprox) {// If DOWN and going DOWN => throttle
+
+        if (this.inputsActions.down && this.speed < this.errApprox) {
             this.throttle = 1;
-            if (this.currentGear > 0) {// If whas in forward gear => put REVERSE
+            if (this.currentGear > 0) {
                 this.currentGear = 0;
             }
-        } else if (this.inputsActions.down && this.speed >= this.errApprox) {// If DOWN and going UP => brake
+        } else if (this.inputsActions.down && this.speed >= this.errApprox) {
             this.brake = 1;
         }
-        // If no UP or DOWN (or both) => no throttle
+
         if (this.inputsActions.up === this.inputsActions.down) {
             this.throttle = 0;
         }
-
-        //TODO: steering
-
-        //TODO: remove!
-        //this.throttle = 1;
     }
 
-    // Curving physics
-    turn() {
-        // Delta Time //TODO: check if correct
+    stepDynamics() {
         const dt = this.time.delta;
+        const steer = THREE.MathUtils.clamp(this.steerAngle, -this.maxSteer, this.maxSteer);
+        const cosDelta = Math.cos(steer);
+        const sinDelta = Math.sin(steer);
+        const speedAbs = Math.hypot(this.vx, this.vy);
 
-        // --- 1. Get forward heading and side vector ---
-        const heading = this.getCarHeading().normalize(); // forward vector
-        const side = new THREE.Vector3(-heading.z, 0, heading.x); // right vector
+        this.speed = this.vx;
+        const { dragX, dragY, rrX, rrY } = this.computeLongitudinalForces(speedAbs);
+        const longForceEstimate =
+            (this.frontLongitudinalForce * cosDelta)
+            + this.rearLongitudinalForce
+            + dragX
+            + rrX;
+        this.setDynamicLoads(longForceEstimate / this.mass);
 
-        // --- 2. Compute speed along heading ---
-        const speed = this.vel.dot(heading);
-        this.speed = speed;
-
-        // --- 3. Transform velocity into local car coordinates ---
-        // So v_local.x is forward and v_local.z is left/right ??
-        let v_local = this.transformByAngle(this.vel, - this.angle);
-        const vx = v_local.x;   // forward
-        const vz = v_local.z;   // lateral
-
-        // --- 4. Compute slip angles ---
-        const minSpeedForSlip = 1.0; // avoids noise at zero speed
-        let alpha_f = 0;
-        let alpha_r = 0;
-        if (Math.abs(this.speed) > minSpeedForSlip) {
-            alpha_f = Math.atan2(v_local.z + this.omegaYaw * this.cgToFront, Math.abs(v_local.x)) - this.steerAngle * Math.sign(v_local.x);//TODO: check calc
-            alpha_r = Math.atan2(v_local.z - this.omegaYaw * this.cgToRear, Math.abs(v_local.x));
+        if (speedAbs < this.lowSpeedThreshold) {
+            this.stepLowSpeedKinematics(steer, cosDelta, dragX, rrX, dt);
+            return;
         }
 
-        // --- 5. Compute steady-state lateral forces (Pacejka Magic Formula) ---
-        const Ff_ss = this.pacejka_formula_slipAngle(alpha_f, 25, 1.8, this.mu * this.Wf, 0.8);
-        const Fr_ss = this.pacejka_formula_slipAngle(alpha_r, 25, 1.8, this.mu * this.Wr, 0.8);
+        const { FyFront, FyRear } = this.computeLateralForces(steer);
+        this.frontLateralForce = FyFront;
+        this.rearLateralForce = FyRear;
 
-        // --- 6. Dynamic (relaxation length) model for transient response ---
-        const vx_abs = Math.abs(v_local.x);
-        // dFy/dt = (vx / L_rel) * (Fy_ss - Fy)
-        const dFy_f = (vx_abs / this.L_rel_front) * (Ff_ss - this.Fy_front);
-        const dFy_r = (vx_abs / this.L_rel_rear) * (Fr_ss - this.Fy_rear);
+        const sumFx =
+            + dragX
+            + rrX
+            + this.frontLongitudinalForce * cosDelta
+            + this.rearLongitudinalForce;
 
-        this.Fy_front += dFy_f * dt;
-        this.Fy_rear  += dFy_r * dt;
+        const sumFy =
+            dragY
+            + rrY
+            + this.frontLongitudinalForce * sinDelta
+            + FyFront * cosDelta
+            + FyRear;
 
-        const F_f_lat = this.Fy_front;
-        const F_r_lat = this.Fy_rear;
+        this.longitudinalAcceleration = sumFx / this.mass;
+        this.axBody = this.longitudinalAcceleration + (this.omegaYaw * this.vy);
+        this.ayBody = (sumFy / this.mass) - (this.omegaYaw * this.vx);
 
-        // --- 7. Convert lateral forces to world space ---
-        const side_f = side.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.steerAngle);
-        const side_r = side.clone();
+        const yawMoment =
+            this.cgToFront * (this.frontLongitudinalForce * sinDelta + FyFront * cosDelta)
+            - this.cgToRear * FyRear;
+        const yawAcceleration = yawMoment / this.inertiaYaw;
 
-        let F_lat_world = side_f.clone().multiplyScalar(F_f_lat).add(side_r.clone().multiplyScalar(F_r_lat));
+        this.vx += this.axBody * dt;
+        this.vy += this.ayBody * dt;
+        this.omegaYaw += yawAcceleration * dt;
 
-        // ---- Stats ----
-        this.f_lat = F_lat_world;
-
-        // --- 8. Update car velocity (world space) ---
-        const a_lat = F_lat_world.clone().divideScalar(this.mass);
-        this.vel.addScaledVector(a_lat, dt);
-
-        // --- 9. Update yaw ---
-        const torqueYaw = F_f_lat * this.cgToFront * Math.cos(this.steerAngle) - F_r_lat * this.cgToRear;
-        const alphaYaw = torqueYaw / this.inertiaYaw;
-        this.omegaYaw += alphaYaw * dt;
         this.angle += this.omegaYaw * dt;
-
-        // --- 10. Longitudinal acceleration ---
-        const ax = (this.F_long.dot(heading) / this.mass) - this.omegaYaw * v_local.z;
-
-        // update local velocity with longitudinal acceleration
-        v_local = this.transformByAngle(this.vel, -this.angle); // recalc local velocity
-        v_local.x += ax * dt;
-        //v_local.z += az * dt;
-        this.vel = this.transformByAngle(v_local, this.angle);
-
-        // --- 11. Update position ---
+        this.syncWorldVelocity();
         this.pos.addScaledVector(this.vel, dt);
 
-    }
+        this.speed = this.vx;
+        this.longForce = sumFx;
+        this.acceleration = this.longitudinalAcceleration;
+        this.lateralAcceleration = this.ayBody;
 
-    transformByAngle(v, angle) {
-        // Create rotation matrix from car yaw (angle)
-        const rotationMatrix = new THREE.Matrix4().makeRotationY(angle);
-        let v_local = v.clone().applyMatrix4(rotationMatrix);
-        v_local = this.SafeMath.sanitize_vec(v_local);
-        return v_local;
-    }
-
-    pacejka_formula_slipAngle(x, B = 25, C = 1.8, D = 6325, E = 0.8) {
-        return D * Math.sin(C * Math.atan(B * (1 - E) * x + E * Math.atan(B * x)));
-    }
-
-    // Straight line physics w/out longitudinal slip
-    straightLine() {
-        // Delta Time //TODO: check if correct
-        const dt = this.time.delta;
-        // Car heading //TODO: check calc
         const heading = this.getCarHeading();
+        const left = this.getCarLeftVector();
+        this.F_long.copy(heading).multiplyScalar(sumFx);
+        this.F_lat.copy(left).multiplyScalar(sumFy);
+        this.F_tot.copy(this.F_long).add(this.F_lat);
 
-        // Speed (vel magnitude)
-        const speed = this.vel.dot(heading);
-        this.speed = speed;
-
-        // Drag
-        const F_drag = this.vel.clone().multiplyScalar(- this.C_drag * speed);//TODO: modulo di this.vel
-        // Rolling resistance
-        const F_rr = this.vel.clone().multiplyScalar(- this.C_rr);//TODO: this.vel.dot(h) * h, where h = (dir_front + dir_rear).normalize()
-
-        // Traction
-        const driveForce = this.getDriveForce();
-        const F_trac = heading.clone().multiplyScalar(driveForce);
-        // Braking
-        let brakeForce = this.brake * this.brakeForceMax * Math.sign(this.speed);
-        const F_brake = heading.clone().multiplyScalar(- brakeForce);
-
-        // Total Longitudinal
-        this.F_tot = F_trac.clone().add(F_brake).add(F_drag).add(F_rr);
-        this.F_long = heading.clone().multiplyScalar(this.F_tot.dot(heading));
-        //this.F_lat.subVectors(this.F_tot, this.F_long);
-
-        // Acceleration
-        let a_long = this.F_long.clone().divideScalar(this.mass);
-
-        // Velocity
-        this.vel.addScaledVector(a_long, dt);
-        // Position
-        this.pos.addScaledVector(this.vel, dt);
-
-        // ----- Stats -----
-        this.speed = speed;
-        this.longForce = this.F_long.dot(heading);
-        this.acceleration = a_long.dot(heading);
-
-        // Weight transfer
-        this.setWeightTransfer();
-
-        // Rear wheel velocity
-        this.rearWheelAngularVelocity = this.speed / this.rearWheelRadius;
-        this.rearWheelRotationMovement = this.rearWheelAngularVelocity * dt;
-        // Front wheel rotation
-        this.frontWheelAngularVelocity = this.speed / this.frontWheelRadius;
-        this.frontWheelRotationMovement = this.frontWheelAngularVelocity * dt;
-
-        // Check fo accuracy
-        //TODO: check in needed
-        if (Math.abs(this.longForce) < this.errApprox) {
-            this.F_long = new THREE.Vector3(0, 0, 0);
-            this.longForce = 0;
-            a_long = new THREE.Vector3(0, 0, 0);
-            this.acceleration = 0;
-        }
-        if (Math.abs(this.speed) < this.errApprox && this.brake) {
-            this.vel = new THREE.Vector3(0, 0, 0);
-            this.speed = 0;
-        }
+        this.setDynamicLoads(this.longitudinalAcceleration);
     }
 
-    // Straight line physics w/ slip
-    /**
-     * @todo
-     */
-    straightLineWithSlip() {
-        // Delta Time //TODO: check if correct
-        const dt = this.time.delta;
-        // Car heading //TODO: check calc
+    stepLowSpeedKinematics(steer, cosDelta, dragX, rrX, dt) {
+        const sumFx =
+            dragX
+            + rrX
+            + this.frontLongitudinalForce * cosDelta
+            + this.rearLongitudinalForce;
+
+        this.longitudinalAcceleration = sumFx / this.mass;
+        this.axBody = this.longitudinalAcceleration;
+        this.ayBody = 0;
+        this.vx += this.axBody * dt;
+        this.vy = 0;
+        this.beta = 0;
+        this.alphaFront = 0;
+        this.alphaRear = 0;
+        this.frontLateralForce = 0;
+        this.rearLateralForce = 0;
+
+        this.omegaYaw =
+            Math.abs(steer) > this.errApprox
+                ? (this.vx / this.wheelBase) * Math.tan(steer)
+                : 0;
+
+        this.angle += this.omegaYaw * dt;
+        this.syncWorldVelocity();
+        this.pos.addScaledVector(this.vel, dt);
+
+        this.speed = this.vx;
+        this.longForce = sumFx;
+        this.acceleration = this.longitudinalAcceleration;
+        this.lateralAcceleration = 0;
+
         const heading = this.getCarHeading();
+        this.F_long.copy(heading).multiplyScalar(sumFx);
+        this.F_lat.set(0, 0, 0);
+        this.F_tot.copy(this.F_long);
 
-        // Speed (vel magnitude)
-        const speed = this.vel.dot(heading);
-        this.speed = speed;
-
-
-        // Torque approach
-        const driveTorque = this.getDriveTorque();
-        const totTractionTorque = false ? 0 : this.getTractionTorque();//TODO: put definitive version
-        const brakeTorque = this.getBrakeTorque();
-        const totTorque = driveTorque - totTractionTorque - brakeTorque;
-
-        const totInertia = this.getRearWheelsInertia();
-
-        this.rearWheelAngularAcceleration = totTorque / totInertia;
-        this.rearWheelAngularVelocity += this.rearWheelAngularAcceleration * dt;
-        this.rearWheelRotationMovement = this.rearWheelAngularVelocity * dt;
-
-        const F_long_module = totTorque / this.rearWheelRadius;
-
-        // Dra
-        const F_drag = this.vel.clone().multiplyScalar(- this.C_drag * speed);
-        // Rolling resistance
-        const F_rr = this.vel.clone().multiplyScalar(- this.C_rr);
-
-        let F_long = heading.clone().multiplyScalar(F_long_module);
-        F_long.add(F_drag).add(F_rr);
-        this.longForce = F_long.dot(heading);
-
-        let a_long = F_long.clone().divideScalar(this.mass);
-        this.acceleration = a_long.dot(heading);
-
-        // Weight transfer
-        this.setWeightTransfer();
-
-        this.vel.addScaledVector(heading, this.acceleration * dt);
-        this.pos.addScaledVector(this.vel, dt);
-        this.speed = this.vel.dot(heading);
-
-        // Front wheel rotation
-        this.frontWheelAngularVelocity = this.speed / this.frontWheelRadius;
-        this.frontWheelRotationMovement = this.frontWheelAngularVelocity * dt;
-
-        // Check fo accuracy
-        //TODO: check in needed
-        if (Math.abs(this.longForce) < this.errApprox) {
-            F_long = new THREE.Vector3(0, 0, 0);
-            this.longForce = 0;
-            a_long = new THREE.Vector3(0, 0, 0);
-            this.acceleration = 0;
-        }
-        if (Math.abs(this.speed) < this.errApprox && this.brake) {
-            this.vel = new THREE.Vector3(0, 0, 0);
-            this.speed = 0;
-        }
+        this.setDynamicLoads(this.longitudinalAcceleration);
     }
 
-    /**
-     * @deprecated First simple engineForge calculator... replaced by getEngineForce().
-     */
-    getEngineForce() {
-        const engineForce = this.throttle * this.engineForceMax;
-        return engineForce;
+    computeLongitudinalForces(speedAbs) {
+        const motionSign = this.getMotionSign();
+        const frontBrakeForceMagnitude = this.brake * this.brakeForceMax * this.brakeBiasFront;
+        const rearBrakeForceMagnitude = this.brake * this.brakeForceMax * (1 - this.brakeBiasFront);
+
+        this.frontLongitudinalForce =
+            motionSign === 0
+                ? 0
+                : -motionSign * frontBrakeForceMagnitude;
+        this.rearLongitudinalForce = this.updateRearWheelDynamics(rearBrakeForceMagnitude);
+
+        const dragX = -this.C_drag * this.vx * speedAbs;
+        const dragY = -this.C_drag * this.vy * speedAbs;
+        const rrX = Math.abs(this.vx) > this.errApprox ? -this.C_rr * this.vx : 0;
+        const rrY = Math.abs(this.vy) > this.errApprox ? -this.C_rr * this.vy : 0;
+
+        this.dragForce = dragX;
+        this.rollingResistanceForce = rrX;
+
+        return { dragX, dragY, rrX, rrY };
     }
 
-    getDriveForce() {
-        const driveTorque = this.getDriveTorque();
-        const driveForce = driveTorque / this.rearWheelRadius;
-        return driveForce;
+    computeLateralForces(steer) {
+        if (Math.abs(this.vx) < this.lowSpeedThreshold) {
+            this.beta = 0;
+            this.alphaFront = 0;
+            this.alphaRear = 0;
+            return { FyFront: 0, FyRear: 0 };
+        }
+
+        const vxAbs = Math.max(Math.abs(this.vx), this.lowSpeedThreshold);
+        const directionSign = Math.sign(this.vx || 1);
+        this.beta = Math.atan2(this.vy, vxAbs);
+
+        this.alphaFront =
+            directionSign * steer - Math.atan2(this.vy + this.cgToFront * this.omegaYaw, vxAbs);
+        this.alphaRear =
+            -Math.atan2(this.vy - this.cgToRear * this.omegaYaw, vxAbs);
+
+        const frontLoadScale = this.staticWf > 0 ? this.Wf / this.staticWf : 1;
+        const rearLoadScale = this.staticWr > 0 ? this.Wr / this.staticWr : 1;
+
+        let FyFront = this.cornerStiffnessFront * frontLoadScale * this.alphaFront;
+        let FyRear = this.cornerStiffnessRear * rearLoadScale * this.alphaRear;
+
+        const frontLimit = this.mu * this.Wf;
+        const rearLimit = this.mu * this.Wr;
+        FyFront = THREE.MathUtils.clamp(FyFront, -frontLimit, frontLimit);
+        FyRear = THREE.MathUtils.clamp(FyRear, -rearLimit, rearLimit);
+
+        return { FyFront, FyRear };
     }
 
     getDriveTorque() {
-        const gearRatio = this.gearRatios[this.currentGear];
-        let engineRPM = this.rearWheelAngularVelocity * gearRatio * this.diffRatio * (60 / (2 * Math.PI));
-        engineRPM = Math.max(this.idleRPM, Math.abs(engineRPM));//TODO: check calc (I puth .abs() to consider 'reverse' RPM)
-        // Shift up/down
+        let gearRatio = this.gearRatios[this.currentGear];
+        let engineRPM = this.getWheelDrivenEngineRPM(gearRatio);
+
         this.shiftGear(engineRPM);
-        // Calc torque
+
+        gearRatio = this.gearRatios[this.currentGear];
+        engineRPM = this.getWheelDrivenEngineRPM(gearRatio);
+
         const engineTorqueMax = this.getEngineTorque(engineRPM);
         const engineTorque = this.throttle * engineTorqueMax;
         const driveTorque = engineTorque * gearRatio * this.diffRatio * this.transmissionEfficiency * this.clutch;
-        // ----- Stats -----
+
         this.engineRPM = engineRPM;
-        // Return value
         return driveTorque;
+    }
+
+    getWheelDrivenEngineRPM(gearRatio) {
+        const engineRPM = this.rearWheelAngularVelocity * gearRatio * this.diffRatio * (60 / (2 * Math.PI));
+        return Math.max(this.idleRPM, Math.abs(engineRPM));
     }
 
     getEngineTorque(rpm, T_max = 400, RPM_peak = 3000) {
@@ -414,77 +353,180 @@ export default class CarPhysics {
     }
 
     shiftGear(rpm) {
-        if (this.currentGear === 0)
+        if (this.currentGear === 0) {
             return;
-        if (rpm > this.maxRPM && this.currentGear < this.maxGear)
+        }
+        if (rpm > this.maxRPM && this.currentGear < this.maxGear) {
             this.currentGear += 1;
-        if (rpm < this.minRPM && this.currentGear > 1)
+        }
+        if (rpm < this.minRPM && this.currentGear > 1) {
             this.currentGear -= 1;
+        }
     }
 
-    getTractionTorque() {
-        const minAbsSpeed = Math.max(Math.abs(this.speed), 0.1);
-        let slipRatio = (this.rearWheelAngularVelocity * this.rearWheelRadius - this.speed) / minAbsSpeed;
-        // Clamp slip for numerical stability
-        slipRatio = THREE.MathUtils.clamp(slipRatio, -1.0, 1.0);
-
-        const F_long_traction = this.pacejka_formula(slipRatio) * this.mu * this.Wr_perWheel;
-        const T_long_traction = (2 * F_long_traction) * this.rearWheelRadius;
-        return T_long_traction;
+    setStaticLoads() {
+        const totalWeight = this.mass * this.g;
+        this.staticWf = (this.cgToRear / this.wheelBase) * totalWeight;
+        this.staticWr = (this.cgToFront / this.wheelBase) * totalWeight;
+        this.Wf = this.staticWf;
+        this.Wr = this.staticWr;
     }
 
-    pacejka_formula(x, B = 0.714, C = 1.40, D = 1.00, E = - 0.20) {
-        return D * Math.sin(C * Math.atan(B * (1 - E) * x + E * Math.atan(B * x)));
+    setDynamicLoads(longitudinalAcceleration = this.longitudinalAcceleration) {
+        const totalWeight = this.mass * this.g;
+        const transfer = (this.cgHeight / this.wheelBase) * this.mass * longitudinalAcceleration;
+
+        this.Wf = THREE.MathUtils.clamp(this.staticWf - transfer, 0, totalWeight);
+        this.Wr = THREE.MathUtils.clamp(totalWeight - this.Wf, 0, totalWeight);
     }
 
-    getBrakeTorque() {
-        let brakeForce = this.brake * this.brakeForceMax;
-        brakeForce = THREE.MathUtils.clamp(brakeForce,
-            -this.F_norm_perRearWheel_max,
-            this.F_norm_perRearWheel_max);
-        const brakeTorque = brakeForce * this.rearWheelRadius * Math.sign(this.speed);
-        return brakeTorque;
+    updateWheelState() {
+        const dt = this.time.delta;
+
+        this.rearWheelRotationMovement = this.rearWheelAngularVelocity * dt;
+
+        this.frontWheelAngularVelocity = this.vx / this.frontWheelRadius;
+        this.frontWheelRotationMovement = this.frontWheelAngularVelocity * dt;
     }
 
-    getRearWheelsInertia() {
-        const rearWheelInertia = (this.rearWheelMass * this.rearWheelRadius * this.rearWheelRadius) / 2;
-        const engineInertia = 0.4; // 0.2-0.4 [kg m^2]
-        const reflectedInertia = engineInertia * Math.pow(this.gearRatios[this.currentGear] * this.diffRatio, 2);
-        const driveshaftInertia = 2; // 1-2 [kg m^2]
-        const totInertia = 2 * rearWheelInertia + reflectedInertia + driveshaftInertia;
-        return totInertia;
+    updateRearWheelDynamics(rearBrakeForceMagnitude) {
+        const driveTorque = this.getDriveTorque();
+        const slipRatio = this.getRearSlipRatio();
+        const normalizedTraction =
+            THREE.MathUtils.clamp(this.tractionCurveSlope * slipRatio, -this.mu, this.mu);
+        const tractionForce = normalizedTraction * this.Wr;
+        const tractionTorque = -tractionForce * this.rearWheelRadius;
+        const brakeTorque = this.getRearBrakeTorque(rearBrakeForceMagnitude);
+        const totalTorque = driveTorque + tractionTorque + brakeTorque;
+        const rearAxleInertia = this.getRearAxleInertia();
+
+        this.driveTorque = driveTorque;
+        this.slipRatio = slipRatio;
+        this.rearTractionTorque = tractionTorque;
+        this.rearBrakeTorque = brakeTorque;
+        this.rearWheelAngularAcceleration = totalTorque / rearAxleInertia;
+        this.rearWheelAngularVelocity += this.rearWheelAngularAcceleration * this.time.delta;
+
+        return tractionForce;
     }
 
-    setWeightTransfer() {
-        const W = this.mass * this.g;
-        const Wf = (this.cgToRear / this.wheelBase) * W - (this.cgHeight / this.wheelBase) * this.mass * this.acceleration;
-        const Wr = (this.cgToFront / this.wheelBase) * W + (this.cgHeight / this.wheelBase) * this.mass * this.acceleration;
-        // Suppose that the car is rear wheel drive
-        this.Wr_perWheel = Wr / 2;
-        this.F_norm_perRearWheel_max = this.mu * this.Wr_perWheel;
+    getRearSlipRatio() {
+        const wheelLinearSpeed = this.rearWheelAngularVelocity * this.rearWheelRadius;
+        const speedDenominator = Math.max(Math.abs(this.vx), 1);
+        const slipRatio = (wheelLinearSpeed - this.vx) / speedDenominator;
 
-        // ----- Stats -----
-        this.Wf = Wf;
-        this.Wr = Wr;
+        return THREE.MathUtils.clamp(slipRatio, -2, 2);
     }
 
-    /**
-     * DEBUG
-     */
+    getRearBrakeTorque(rearBrakeForceMagnitude) {
+        const rotationSign = this.getWheelRotationSign();
+
+        if (rotationSign === 0) {
+            return 0;
+        }
+
+        return -rotationSign * rearBrakeForceMagnitude * this.rearWheelRadius;
+    }
+
+    getWheelRotationSign() {
+        if (Math.abs(this.rearWheelAngularVelocity) > this.errApprox) {
+            return Math.sign(this.rearWheelAngularVelocity);
+        }
+
+        if (Math.abs(this.vx) > this.errApprox) {
+            return Math.sign(this.vx);
+        }
+
+        const gearRatio = this.gearRatios[this.currentGear];
+
+        if (this.throttle > 0 && gearRatio !== 0) {
+            return Math.sign(gearRatio);
+        }
+
+        return 0;
+    }
+
+    getMotionSign() {
+        if (Math.abs(this.vx) > this.errApprox) {
+            return Math.sign(this.vx);
+        }
+
+        return 0;
+    }
+
+    getRearAxleInertia() {
+        const wheelInertia = (this.rearWheelMass * this.rearWheelRadius * this.rearWheelRadius) / 2;
+        const engineInertia = 0.3;
+        const driveshaftInertia = 1;
+        const gearRatio = Math.abs(this.gearRatios[this.currentGear] || 1);
+        const reflectedEngineInertia = engineInertia * Math.pow(gearRatio * this.diffRatio, 2);
+
+        return (2 * wheelInertia) + reflectedEngineInertia + driveshaftInertia;
+    }
+
+    stabilizeAtLowSpeed() {
+        const isNearlyStill =
+            Math.abs(this.vx) < this.errApprox &&
+            Math.abs(this.vy) < this.errApprox &&
+            Math.abs(this.omegaYaw) < this.errApprox;
+
+        if (isNearlyStill && this.throttle === 0) {
+            this.vx = 0;
+            this.vy = 0;
+            this.speed = 0;
+            this.omegaYaw = 0;
+            this.axBody = 0;
+            this.ayBody = 0;
+            this.longitudinalAcceleration = 0;
+            this.frontLateralForce = 0;
+            this.rearLateralForce = 0;
+            this.frontLongitudinalForce = 0;
+            this.rearLongitudinalForce = 0;
+            this.longForce = 0;
+            this.acceleration = 0;
+            this.lateralAcceleration = 0;
+            this.dragForce = 0;
+            this.rollingResistanceForce = 0;
+            this.beta = 0;
+            this.alphaFront = 0;
+            this.alphaRear = 0;
+            this.slipRatio = 0;
+            this.driveTorque = 0;
+            this.rearTractionTorque = 0;
+            this.rearBrakeTorque = 0;
+
+            this.vel.set(0, 0, 0);
+            this.F_long.set(0, 0, 0);
+            this.F_lat.set(0, 0, 0);
+            this.F_tot.set(0, 0, 0);
+
+            this.rearWheelAngularAcceleration = 0;
+            this.rearWheelAngularVelocity = 0;
+            this.frontWheelAngularVelocity = 0;
+            this.rearWheelRotationMovement = 0;
+            this.frontWheelRotationMovement = 0;
+        }
+    }
 
     updateStatsPanel() {
         if (this.debug.active) {
-            // General
             this.debug.stats.speed = Number.parseFloat(this.speed).toFixed(2);
             this.debug.stats.speedKMH = Number.parseFloat(this.speed * 3.6).toFixed(0);
             this.debug.stats.engineForce = Number.parseFloat(this.longForce).toFixed(2);
             this.debug.stats.accel = Number.parseFloat(this.acceleration).toFixed(2);
             this.debug.stats.Wf = Number.parseFloat(this.Wf).toFixed(2);
             this.debug.stats.Wr = Number.parseFloat(this.Wr).toFixed(2);
-            // Engine
+            this.debug.stats.vx = Number.parseFloat(this.vx).toFixed(2);
+            this.debug.stats.vy = Number.parseFloat(this.vy).toFixed(2);
+            this.debug.stats.beta = Number.parseFloat(this.beta).toFixed(3);
+            this.debug.stats.yawRate = Number.parseFloat(this.omegaYaw).toFixed(3);
+            this.debug.stats.alphaFront = Number.parseFloat(this.alphaFront).toFixed(3);
+            this.debug.stats.alphaRear = Number.parseFloat(this.alphaRear).toFixed(3);
+            this.debug.stats.slipRatio = Number.parseFloat(this.slipRatio).toFixed(3);
+
             this.debug.stats.engineRPM = Number.parseFloat(this.engineRPM).toFixed(0);
             this.debug.stats.currentGear = (this.speed === 0) ? 'N' : ((this.currentGear === 0) ? 'R' : this.currentGear);
-            // Wheels
+
             this.debug.stats.rearWheelAngularAcceleration = Number.parseFloat(this.rearWheelAngularAcceleration).toFixed(2);
             this.debug.stats.rearWheelAngularVelocity = Number.parseFloat(this.rearWheelAngularVelocity).toFixed(2);
             this.debug.stats.frontWheelAngularVelocity = Number.parseFloat(this.frontWheelAngularVelocity).toFixed(2);
@@ -493,16 +535,11 @@ export default class CarPhysics {
 
     loadDebugger() {
         if (this.debug.active) {
-            // Physics debug folder
             this.debugFolder = this.debug.ui.addFolder('car_physics');
             this.debugFolder
                 .add(this, 'mass')
                 .name('mass')
                 .min(1).max(5000).step(1);
-            this.debugFolder
-                .add(this, 'rearWheelMass')
-                .name('rear_wheel_mass')
-                .min(1).max(50000).step(1);
             this.debugFolder
                 .add(this, 'brakeForceMax')
                 .name('brake_force_max')
@@ -523,14 +560,22 @@ export default class CarPhysics {
                 .add(this, 'transmissionEfficiency')
                 .name('trans_effic')
                 .min(0).max(1).step(0.01);
-            //this.debugFolder
-            //    .add(this, 'C_t_perWheel')
-            //    .name('Ct_per_wheel')
-            //    .min(0).max(100000).step(100);
             this.debugFolder
                 .add(this, 'mu')
                 .name('mu-friction_coeff')
                 .min(0).max(5).step(0.01);
+            this.debugFolder
+                .add(this, 'tractionCurveSlope')
+                .name('traction_curve')
+                .min(1).max(40).step(0.1);
+            this.debugFolder
+                .add(this, 'cornerStiffnessFront')
+                .name('corner_stiff_front')
+                .min(1000).max(100000).step(100);
+            this.debugFolder
+                .add(this, 'cornerStiffnessRear')
+                .name('corner_stiff_rear')
+                .min(1000).max(100000).step(100);
             this.debugFolder
                 .add(this, 'errApprox')
                 .name('error_approx')
