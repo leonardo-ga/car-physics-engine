@@ -23,6 +23,7 @@ export default class Debug {
                 alphaFront: 0,
                 alphaRear: 0,
                 slipRatio: 0,
+                physicsModel: 'dynamic-single-track',
                 // Engine
                 engineRPM: 0,
                 currentGear: 1,
@@ -52,6 +53,7 @@ export default class Debug {
                 `<div>Slip angle front: ${this.stats.alphaFront} rad</div>`,
                 `<div>Slip angle rear: ${this.stats.alphaRear} rad</div>`,
                 `<div>Rear slip ratio: ${this.stats.slipRatio}</div>`,
+                `<div>Physics model: ${this.stats.physicsModel}</div>`,
                 `<h3>----- Engine -----</h3>`,
                 `<div>Engine RPM: ${this.stats.engineRPM}</div>`,
                 `<div>Current gear: ${this.stats.currentGear}</div>`,
