@@ -24,8 +24,8 @@ export default class Camera {
     this.desiredPos = new THREE.Vector3();
     this.carWorldPos = new THREE.Vector3();
     this.lerpFactor = 0.1;
-    this.isStillMoving = false;
-    this.cameraPosApproximation = 0.1;
+    this.isStillMoving = false;//TODO: cosi' se la macchina parte da sola, la cam non segue
+    this.cameraPosApproximation = 0.01;
   }
 
   loadCamera() {

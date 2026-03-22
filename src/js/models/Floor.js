@@ -15,7 +15,7 @@ export default class Floor {
     }
 
     setGeometry() {
-        this.geometry = new THREE.PlaneGeometry(100, 100, 100, 100);
+        this.geometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
     }
 
     setMaterial() {
@@ -35,10 +35,10 @@ export default class Floor {
 
     loadDebugger() {
         if(this.debug.active) {
-        this.debugFolder = this.debug.ui.addFolder('floor');
+            this.debugFolder = this.debug.ui.addFolder('floor');
 
-        this.debugFolder
-            .add(this.material, 'wireframe');
+            this.debugFolder
+                .add(this.material, 'wireframe');
         }
     }
 

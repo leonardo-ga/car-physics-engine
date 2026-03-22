@@ -1,19 +1,19 @@
-const isCodeSandbox = 'SANDBOX_URL' in process.env || 'CODESANDBOX_HOST' in process.env
+import { defineConfig } from 'vite';
 
-export default {
+const isCodeSandbox = 'SANDBOX_URL' in process.env || 'CODESANDBOX_HOST' in process.env;
+
+export default defineConfig({
     root: 'src/',
-    publicDir: '../static/',
+    publicDir: false,
     base: './',
-    server:
-    {
+    server: {
         host: true,
-        open: !isCodeSandbox // Open if it's not a CodeSandbox
+        open: !isCodeSandbox
     },
-    build:
-    {
+    build: {
         outDir: '../docs',
         emptyOutDir: true,
         sourcemap: true,
-        target: 'esnext' // makes build work...
+        target: 'esnext'
     }
-}
+});

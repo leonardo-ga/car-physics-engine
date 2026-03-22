@@ -12,23 +12,21 @@ export default class Inputs extends Events {
 
     setActions() {
         this.actions = {};
+        this.resetActions();
+
+        this.handleVisibilityChange = () => {
+            this.resetActions();
+        };
+
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+
+    resetActions() {
         this.actions.up = false;
         this.actions.right = false;
         this.actions.down = false;
         this.actions.left = false;
         this.actions.brake = false;
-        this.actions.boost = false;
-
-        document.addEventListener('visibilitychange', () => {
-            if(!document.hidden) {
-                this.actions.up = false;
-                this.actions.right = false;
-                this.actions.down = false;
-                this.actions.left = false;
-                this.actions.brake = false;
-                this.actions.boost = false;
-            }
-        });
     }
 
     setKeyboard() {
@@ -62,11 +60,6 @@ export default class Inputs extends Events {
                 case 'ControlRight':
                 case 'Space':
                     this.actions.brake = true
-                    break
-
-                case 'ShiftLeft':
-                case 'ShiftRight':
-                    this.actions.boost = true
                     break
 
                 // case ' ':
@@ -104,11 +97,6 @@ export default class Inputs extends Events {
                     this.actions.brake = false
                     break
 
-                case 'ShiftLeft':
-                case 'ShiftRight':
-                    this.actions.boost = false
-                    break
-
                 //case 'KeyR':
                 //    this.trigger('action', ['reset'])
                 //    break
@@ -117,6 +105,12 @@ export default class Inputs extends Events {
 
         document.addEventListener('keydown', this.keyboard.events.keyDown)
         document.addEventListener('keyup', this.keyboard.events.keyUp)
+    }
+
+    destroy() {
+        document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+        document.removeEventListener('keydown', this.keyboard.events.keyDown);
+        document.removeEventListener('keyup', this.keyboard.events.keyUp);
     }
 
 }
