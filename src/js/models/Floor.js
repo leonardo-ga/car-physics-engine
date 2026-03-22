@@ -35,10 +35,10 @@ export default class Floor {
 
     loadDebugger() {
         if(this.debug.active) {
-        this.debugFolder = this.debug.ui.addFolder('floor');
+            this.debugFolder = this.debug.ui.addFolder('floor');
 
-        this.debugFolder
-            .add(this.material, 'wireframe');
+            this.debugFolder
+                .add(this.material, 'wireframe');
         }
     }
 

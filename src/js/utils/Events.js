@@ -1,9 +1,3 @@
-/**
- * This has been copied from an old project.
- * Check that everything is good.
- * TODO
- */
-
 export default class Events
 {
     constructor()
@@ -33,30 +27,48 @@ export default class Events
 
     off(_name, _callback = null)
     {
+        const callbacks = this.callbacks[_name];
+
+        if(!(callbacks instanceof Array))
+        {
+            return this;
+        }
+
         // Remove specific
         if(typeof _callback === 'function')
         {
-            const callbacks = this.callbacks[_name];
-
-            for(const order in this.callbacks)
+            for(const order in callbacks)
             {
-                // Find
-                const index = callbacks[order][_name].indexOf(_callback);
+                const orderedCallbacks = callbacks[order];
+
+                if(!(orderedCallbacks instanceof Array))
+                {
+                    continue;
+                }
+
+                const index = orderedCallbacks.indexOf(_callback);
 
                 if(index !== -1)
                 {
-                    callbacks.splice(index, 1);
+                    orderedCallbacks.splice(index, 1);
                 }
+
+                if(orderedCallbacks.length === 0)
+                {
+                    delete callbacks[order];
+                }
+            }
+
+            if(callbacks.every((orderedCallbacks) => orderedCallbacks === undefined))
+            {
+                delete this.callbacks[_name];
             }
         }
 
         // Remove all
         else
         {
-            if(this.callbacks[_name] instanceof Array)
-            {
-                delete this.callbacks[_name];
-            }
+            delete this.callbacks[_name];
         }
 
         return this;
